@@ -1,0 +1,7 @@
+crewai
+python-dotenv
+litellm
+fastapi
+uvicorn
+pydantic
+reportlab
