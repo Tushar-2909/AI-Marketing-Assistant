@@ -1,0 +1,16 @@
+.git
+.github
+.venv
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache
+.mypy_cache
+.env
+publish-export
+marketing-muse-main/marketing-muse-main/node_modules
+marketing-muse-main/marketing-muse-main/dist
+marketing-muse-main/marketing-muse-main/.env
+marketing-muse-main/marketing-muse-main/.DS_Store
+marketing-muse-main/marketing-muse-main/coverage

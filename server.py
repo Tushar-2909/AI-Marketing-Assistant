@@ -1,12 +1,16 @@
 import json
 import os
 from datetime import datetime
+from pathlib import Path
 
 from crewai import Crew, Task
 from dotenv import load_dotenv
 from fastapi import FastAPI
+from fastapi import HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
 from fastapi.responses import JSONResponse, StreamingResponse
+from fastapi.staticfiles import StaticFiles
 from litellm import completion
 from pydantic import BaseModel
 
@@ -18,6 +22,9 @@ from pdf_generator import generate_pdf
 load_dotenv()
 
 app = FastAPI(title="Marketing Planning Generator API")
+BASE_DIR = Path(__file__).resolve().parent
+FRONTEND_DIST_DIR = BASE_DIR / "marketing-muse-main" / "marketing-muse-main" / "dist"
+FRONTEND_ASSETS_DIR = FRONTEND_DIST_DIR / "assets"
 
 app.add_middleware(
     CORSMiddleware,
@@ -203,6 +210,26 @@ async def generate_strategy_pdf(request: GoalRequest):
         )
     except Exception as exc:
         return JSONResponse(status_code=500, content={"error": str(exc)})
+
+
+if FRONTEND_ASSETS_DIR.exists():
+    app.mount("/assets", StaticFiles(directory=FRONTEND_ASSETS_DIR), name="frontend-assets")
+
+
+@app.get("/{full_path:path}", include_in_schema=False)
+async def serve_frontend(full_path: str):
+    if not FRONTEND_DIST_DIR.exists():
+        raise HTTPException(status_code=404, detail="Frontend build not found")
+
+    requested_path = FRONTEND_DIST_DIR / full_path
+    if full_path and requested_path.is_file():
+        return FileResponse(requested_path)
+
+    index_file = FRONTEND_DIST_DIR / "index.html"
+    if index_file.exists():
+        return FileResponse(index_file)
+
+    raise HTTPException(status_code=404, detail="Frontend build not found")
 
 
 if __name__ == "__main__":
