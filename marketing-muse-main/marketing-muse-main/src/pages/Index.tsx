@@ -14,8 +14,11 @@ import {
   type StrategyResult,
 } from "@/components/marketing/ResultsDisplay";
 import { HistoryList, type HistoryItem } from "@/components/marketing/HistoryList";
+import { generateUUID } from "@/lib/utils";
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || (import.meta.env.DEV ? "http://localhost:8000" : "");
+const API_BASE_URL =
+  import.meta.env.VITE_API_BASE_URL ||
+  (import.meta.env.DEV ? "http://localhost:8000" : "");
 
 async function parseApiResponse(response: Response) {
   const rawBody = await response.text();
@@ -112,15 +115,18 @@ const buildResult = (goal: string, platform: string): StrategyResult => ({
     },
     {
       channel: "Paid Ads",
-      action: "Launch a 2-week awareness campaign with lookalike audiences (1-3% similarity).",
+      action:
+        "Launch a 2-week awareness campaign with lookalike audiences (1-3% similarity).",
     },
     {
       channel: "Partnerships",
-      action: "Activate 5 micro-influencers (10-50K followers) for authentic product seeding.",
+      action:
+        "Activate 5 micro-influencers (10-50K followers) for authentic product seeding.",
     },
     {
       channel: "Measurement",
-      action: "Weekly review of CTR, CPM and conversion rate; reallocate budget every Friday.",
+      action:
+        "Weekly review of CTR, CPM and conversion rate; reallocate budget every Friday.",
     },
   ],
 });
@@ -132,25 +138,46 @@ const Index = () => {
   const [result, setResult] = useState<StrategyResult | null>(null);
   const [history, setHistory] = useState<HistoryItem[]>(sampleHistory);
   const [tasksCompleted, setTasksCompleted] = useState(24);
-  const [currentGoal, setCurrentGoal] = useState<string>("");
+  const [currentGoal, setCurrentGoal] = useState("");
+
   const resultsRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLDivElement>(null);
   const historyRef = useRef<HTMLDivElement>(null);
 
   const handleNavigate = (id: string) => {
     setSection(id);
-    if (id === "new") inputRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
-    else if (id === "history") historyRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
-    else if (id === "home") window.scrollTo({ top: 0, behavior: "smooth" });
-    else if (id === "settings") toast("Settings coming soon?");
+
+    if (id === "new") {
+      inputRef.current?.scrollIntoView({
+        behavior: "smooth",
+        block: "start",
+      });
+    } else if (id === "history") {
+      historyRef.current?.scrollIntoView({
+        behavior: "smooth",
+        block: "start",
+      });
+    } else if (id === "home") {
+      window.scrollTo({
+        top: 0,
+        behavior: "smooth",
+      });
+    } else if (id === "settings") {
+      toast("Settings coming soon?");
+    }
   };
 
-  const runAgents = async (goal: string, platform: string) => {
+  const runAgents = async (goal: string) => {
     setLoading(true);
     setResult(null);
     setAgents(initialAgents.map((agent) => ({ ...agent })));
 
-    const sequence: { id: Agent["id"]; status: AgentStatus; progress: number; delay: number }[] = [
+    const sequence: {
+      id: Agent["id"];
+      status: AgentStatus;
+      progress: number;
+      delay: number;
+    }[] = [
       { id: "planner", status: "running", progress: 45, delay: 200 },
       { id: "planner", status: "completed", progress: 100, delay: 1100 },
       { id: "researcher", status: "running", progress: 40, delay: 1300 },
@@ -163,7 +190,13 @@ const Index = () => {
       setTimeout(() => {
         setAgents((prev) =>
           prev.map((agent) =>
-            agent.id === step.id ? { ...agent, status: step.status, progress: step.progress } : agent,
+            agent.id === step.id
+              ? {
+                  ...agent,
+                  status: step.status,
+                  progress: step.progress,
+                }
+              : agent,
           ),
         );
       }, step.delay);
@@ -184,84 +217,71 @@ const Index = () => {
         setResult(data);
         setLoading(false);
         setTasksCompleted((count) => count + 3);
+
         toast.success("Strategy generated", {
           description: "Your AI marketing plan is ready to review.",
         });
+
         setTimeout(() => {
-          resultsRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+          resultsRef.current?.scrollIntoView({
+            behavior: "smooth",
+            block: "start",
+          });
         }, 100);
       }, 3900);
     } catch (error) {
       console.error("Error generating strategy:", error);
+
       toast.error("Failed to generate strategy", {
         description: `Please ensure the backend server is running on ${API_BASE_URL}`,
       });
+
       setLoading(false);
-      setAgents(initialAgents.map((agent) => ({ ...agent, status: "failed", progress: 0 })));
+
+      setAgents(
+        initialAgents.map((agent) => ({
+          ...agent,
+          status: "failed",
+          progress: 0,
+        })),
+      );
     }
   };
 
   const handleSubmit = (data: { goal: string }) => {
     setCurrentGoal(data.goal);
+
     const item: HistoryItem = {
-      id: crypto.randomUUID(),
+      id: generateUUID(),
       goal: data.goal,
       platform: "multi",
       date: "Just now",
     };
+
     setHistory((prev) => [item, ...prev]);
-    runAgents(data.goal, "");
+
+    runAgents(data.goal);
   };
 
   const handleSelectHistory = (item: HistoryItem) => {
     setResult(buildResult(item.goal, item.platform));
-    setAgents(initialAgents.map((agent) => ({ ...agent, status: "completed", progress: 100 })));
+
+    setAgents(
+      initialAgents.map((agent) => ({
+        ...agent,
+        status: "completed",
+        progress: 100,
+      })),
+    );
+
     toast(`Loaded: ${item.goal}`);
+
     setTimeout(() => {
-      resultsRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+      resultsRef.current?.scrollIntoView({
+        behavior: "smooth",
+        block: "start",
+      });
     }, 100);
-  };
-
-  const downloadPDF = async () => {
-    try {
-      const response = await fetch(`${API_BASE_URL}/generate-strategy-pdf`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ goal: currentGoal }),
-      });
-
-      if (!response.ok) {
-        const rawBody = await response.text();
-        let errorMessage = rawBody.trim() || `API error: ${response.status}`;
-
-        try {
-          const errorData = rawBody ? JSON.parse(rawBody) : null;
-          errorMessage = errorData?.error || errorMessage;
-        } catch {
-          // Keep the fallback text when the server returns HTML or plain text.
-        }
-
-        throw new Error(errorMessage);
-      }
-
-      const blob = await response.blob();
-      const url = window.URL.createObjectURL(blob);
-      const anchor = document.createElement("a");
-      anchor.href = url;
-      const date = new Date().toISOString().split("T")[0];
-      anchor.download = `marketing_plan_${date}.pdf`;
-      document.body.appendChild(anchor);
-      anchor.click();
-      document.body.removeChild(anchor);
-      window.URL.revokeObjectURL(url);
-    } catch (error) {
-      console.error("Error downloading PDF:", error);
-      toast.error("Failed to download PDF", {
-        description: `Please ensure the backend server is running on ${API_BASE_URL}`,
-      });
-    }
   };
 
   useEffect(() => {
@@ -283,8 +303,9 @@ const Index = () => {
               AI Marketing <span className="text-gradient">Assistant</span>
             </h1>
             <p className="text-base text-muted-foreground md:text-lg">
-              Plan, research and execute high-impact marketing campaigns from a single goal.
-              Three specialized AI agents collaborate to deliver a strategy you can ship today.
+              Plan, research and execute high-impact marketing campaigns from a
+              single goal. Three specialized AI agents collaborate to deliver a
+              strategy you can ship today.
             </p>
           </div>
         </section>
@@ -325,16 +346,63 @@ const Index = () => {
                 result={result}
                 loading={loading}
                 goal={currentGoal}
-                onDownloadPDF={downloadPDF}
+                onDownloadPDF={async () => {
+                  try {
+                    const response = await fetch(
+                      `${API_BASE_URL}/generate-strategy-pdf`,
+                      {
+                        method: "POST",
+                        headers: {
+                          "Content-Type": "application/json",
+                        },
+                        body: JSON.stringify({ goal: currentGoal }),
+                      },
+                    );
+
+                    if (!response.ok) {
+                      const rawBody = await response.text();
+                      let errorMessage =
+                        rawBody.trim() || `API error: ${response.status}`;
+
+                      try {
+                        const errorData = rawBody ? JSON.parse(rawBody) : null;
+                        errorMessage = errorData?.error || errorMessage;
+                      } catch {
+                        // Keep plain-text or HTML response as-is.
+                      }
+
+                      throw new Error(errorMessage);
+                    }
+
+                    const blob = await response.blob();
+                    const url = window.URL.createObjectURL(blob);
+                    const anchor = document.createElement("a");
+                    anchor.href = url;
+                    const date = new Date().toISOString().split("T")[0];
+                    anchor.download = `marketing_plan_${date}.pdf`;
+                    document.body.appendChild(anchor);
+                    anchor.click();
+                    document.body.removeChild(anchor);
+                    window.URL.revokeObjectURL(url);
+                  } catch (error) {
+                    console.error("Error downloading PDF:", error);
+                    toast.error("Failed to download PDF", {
+                      description: `Please ensure the backend server is running on ${API_BASE_URL}`,
+                    });
+                  }
+                }}
               />
             ) : (
               <div className="flex h-full min-h-[280px] flex-col items-center justify-center rounded-xl border border-dashed border-border/80 bg-background/40 p-8 text-center">
                 <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-2xl bg-primary/10 text-primary">
                   <Sparkles className="h-6 w-6" />
                 </div>
-                <h3 className="font-display text-base font-bold">Your strategy will appear here</h3>
+                <h3 className="font-display text-base font-bold">
+                  Your strategy will appear here
+                </h3>
                 <p className="mt-1 max-w-sm text-sm text-muted-foreground">
-                  Enter a marketing goal above and let the agents generate a complete plan.
+                  Enter a marketing goal above and let the agents generate a
+                  complete plan.
                 </p>
               </div>
             )}
@@ -348,7 +416,8 @@ const Index = () => {
 
       <footer className="border-t border-border/60 py-6">
         <div className="container text-center text-xs text-muted-foreground">
-          © {new Date().getFullYear()} MarketrAI · Crafted for modern marketing teams
+          © {new Date().getFullYear()} MarketrAI · Crafted for modern marketing
+          teams
         </div>
       </footer>
     </div>
