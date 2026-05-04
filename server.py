@@ -17,6 +17,7 @@ from pydantic import BaseModel
 from agents.executor import executor
 from agents.planner import planner
 from agents.researcher import researcher
+from config.llm_config import get_groq_api_key
 from pdf_generator import generate_pdf
 
 load_dotenv()
@@ -54,6 +55,11 @@ def normalize_goal(goal: str) -> str:
 def is_token_rate_limit_error(exc: Exception) -> bool:
     message = str(exc).lower()
     return "rate_limit" in message or "rate limit" in message or "tokens per minute" in message
+
+
+def is_invalid_api_key_error(exc: Exception) -> bool:
+    message = str(exc).lower()
+    return "invalid api key" in message or "invalid_api_key" in message
 
 
 def build_strategy_crew(goal: str) -> Crew:
@@ -127,9 +133,10 @@ def parse_crew_output(output: str) -> StrategyResult:
 def generate_compact_strategy(goal: str) -> StrategyResult:
     """Fallback strategy generation using a single compact model call."""
     normalized_goal = normalize_goal(goal)
+    api_key = get_groq_api_key()
     response = completion(
         model="groq/llama-3.1-8b-instant",
-        api_key=os.getenv("GROQ_API_KEY"),
+        api_key=api_key,
         base_url="https://api.groq.com/openai/v1",
         temperature=0.4,
         max_tokens=450,
@@ -161,6 +168,7 @@ def generate_compact_strategy(goal: str) -> StrategyResult:
 def generate_strategy_for_goal(goal: str) -> StrategyResult:
     """Generate a strategy, falling back to a compact prompt when token limits are hit."""
     normalized_goal = normalize_goal(goal)
+    get_groq_api_key()
 
     try:
         crew = build_strategy_crew(normalized_goal)
@@ -182,6 +190,13 @@ async def generate_strategy(request: GoalRequest) -> StrategyResult:
     try:
         return generate_strategy_for_goal(request.goal)
     except Exception as exc:
+        if is_invalid_api_key_error(exc):
+            return StrategyResult(
+                planning=["Update the Groq API key and try again."],
+                research=[{"title": "Invalid API Key", "insight": "Groq rejected the configured API key for this request."}],
+                execution=[{"channel": "Next Step", "action": "Set a valid GROQ_API_KEY in the root .env file and restart the backend."}],
+            )
+
         if is_token_rate_limit_error(exc):
             return StrategyResult(
                 planning=["Keep the goal shorter and try again."],

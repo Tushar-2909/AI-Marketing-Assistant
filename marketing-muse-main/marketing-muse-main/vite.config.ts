@@ -7,6 +7,11 @@ export default defineConfig(({ mode }) => ({
   server: {
     host: "::",
     port: 5173,
+    proxy: {
+      "/health": "http://localhost:8000",
+      "/generate-strategy": "http://localhost:8000",
+      "/generate-strategy-pdf": "http://localhost:8000",
+    },
     hmr: {
       overlay: false,
     },

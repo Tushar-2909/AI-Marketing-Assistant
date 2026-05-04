@@ -152,65 +152,71 @@ docker run --env-file .env -p 8000:8000 marketing-planning-generator
 
 The recommended production target in this repo is now:
 
-- Docker image in Amazon ECR
+- Docker image in Docker Hub
 - one Ubuntu EC2 instance running Docker Compose
 - GitHub Actions for CI/CD over SSH
+
+### CI/CD Flow
+
+This deployment pipeline works like this:
+
+1. You push code to GitHub.
+2. GitHub Actions validates the backend and frontend.
+3. GitHub Actions builds a Docker image from this repo.
+4. GitHub Actions pushes that image to Docker Hub.
+5. GitHub Actions connects to your EC2 instance over SSH.
+6. The EC2 instance logs in to Docker Hub, pulls the new image, and restarts the app with Docker Compose.
+
+This is possible because:
+
+- GitHub Actions can build Docker images in the cloud
+- Docker Hub acts as the image registry between GitHub and EC2
+- EC2 only needs Docker, Docker Compose, and SSH access
+- the app is already packaged as a single container through the `Dockerfile`
 
 ### 1. Create AWS resources
 
 Create these once in AWS:
 
-1. An ECR repository for the image.
-2. One EC2 instance with a public IP or DNS name.
-3. A security group allowing inbound `80` for the app and `22` for SSH.
-4. An IAM role for the EC2 instance with ECR pull access.
-5. An IAM role for GitHub Actions OIDC deployment.
+1. One EC2 instance with a public IP or DNS name.
+2. A security group allowing inbound `80` for the app and `22` for SSH.
+3. An SSH key pair or SSH user access for deployment.
 
 ### 2. Prepare the EC2 instance
 
-Install Docker, Docker Compose, and AWS CLI on the instance.
+Install Docker and Docker Compose on the instance.
 
 Example for Ubuntu:
 
 ```bash
 sudo apt update
-sudo apt install -y docker.io docker-compose-plugin unzip curl
+sudo apt install -y docker.io docker-compose-plugin
 sudo usermod -aG docker $USER
-curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
-unzip awscliv2.zip
-sudo ./aws/install
 ```
 
 Then log out and back in once so your user can run Docker without `sudo`.
-
-Attach an instance profile that allows:
-
-- `ecr:GetAuthorizationToken`
-- `ecr:BatchGetImage`
-- `ecr:GetDownloadUrlForLayer`
-- `ecr:BatchCheckLayerAvailability`
 
 ### 3. Configure GitHub Actions authentication
 
 This setup uses two trust paths:
 
-- GitHub Actions assumes an AWS role via OIDC to push the Docker image to ECR
+- GitHub Actions logs in to Docker Hub to push the Docker image
 - GitHub Actions SSHs into EC2 to restart the container
 
 Add these repository secrets:
 
-- `AWS_DEPLOY_ROLE_ARN`: the IAM role GitHub Actions is allowed to assume
+- `DOCKERHUB_TOKEN`: a Docker Hub access token
 - `EC2_SSH_PRIVATE_KEY`: the private SSH key for the EC2 user
 - `GROQ_API_KEY`: your application secret
 
-The `AWS_DEPLOY_ROLE_ARN` role should be allowed to push images to ECR.
+Use a Docker Hub access token, not your Docker Hub password.
 
 ### 4. Add repository variables
 
 Add these GitHub repository variables:
 
-- `AWS_REGION`
-- `ECR_REPOSITORY`
+- `DOCKERHUB_USERNAME`
+- `DOCKERHUB_REPOSITORY`
 - `EC2_HOST`
 - `EC2_USERNAME`
 - `EC2_APP_DIR`
@@ -218,6 +224,8 @@ Add these GitHub repository variables:
 
 Recommended values:
 
+- `DOCKERHUB_USERNAME=your-dockerhub-username`
+- `DOCKERHUB_REPOSITORY=marketing-planning-generator`
 - `EC2_APP_DIR=/opt/marketing-planning-generator`
 - `HOST_PORT=80`
 
@@ -228,7 +236,7 @@ The EC2 workflow file is `.github/workflows/deploy-ec2.yml`.
 Behavior:
 
 - pull requests run validation only
-- pushes to `main` run validation, build the Docker image, push to ECR, copy deploy files to EC2, and restart the app
+- pushes to `main` run validation, build the Docker image, push to Docker Hub, copy deploy files to EC2, and restart the app
 - manual runs are available through `workflow_dispatch`
 
 If your default deployment branch is not `main`, update `.github/workflows/deploy-ec2.yml`.
@@ -239,7 +247,7 @@ The EC2 deployment uses:
 
 - [Dockerfile](</d:/6th sem ki padhai/agentic AI/marketing planning generator/Dockerfile:1>) to build the image
 - [compose.ec2.yaml](</d:/6th sem ki padhai/agentic AI/marketing planning generator/deploy/compose.ec2.yaml:1>) to run the container on the server
-- [deploy-ec2.sh](</d:/6th sem ki padhai/agentic AI/marketing planning generator/scripts/deploy-ec2.sh:1>) to log in to ECR, pull the image, and restart the service
+- [deploy-ec2.sh](</d:/6th sem ki padhai/agentic AI/marketing planning generator/scripts/deploy-ec2.sh:1>) to log in to Docker Hub, pull the image, and restart the service
 
 The app will be available on:
 

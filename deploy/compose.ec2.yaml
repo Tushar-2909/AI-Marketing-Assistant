@@ -1,8 +1,18 @@
+version: "3.9"
+
 services:
   app:
     image: ${IMAGE_URI}
-    restart: unless-stopped
+    container_name: marketing-app
+    restart: always
+
+    ports:
+      - "${HOST_PORT}:8000"
+
     env_file:
       - .env
-    ports:
-      - "${HOST_PORT:-80}:8000"
+
+    environment:
+      GROQ_API_KEY: ${GROQ_API_KEY}
+      HOST: 0.0.0.0
+      PORT: 8000

@@ -15,7 +15,25 @@ import {
 } from "@/components/marketing/ResultsDisplay";
 import { HistoryList, type HistoryItem } from "@/components/marketing/HistoryList";
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "";
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || (import.meta.env.DEV ? "http://localhost:8000" : "");
+
+async function parseApiResponse(response: Response) {
+  const rawBody = await response.text();
+  const contentType = response.headers.get("content-type") || "";
+  const isJsonResponse = contentType.includes("application/json");
+  const data = isJsonResponse && rawBody ? JSON.parse(rawBody) : null;
+
+  if (!response.ok) {
+    const fallbackMessage = rawBody.trim() || `API error: ${response.status}`;
+    throw new Error(data?.error || fallbackMessage);
+  }
+
+  if (data) {
+    return data;
+  }
+
+  throw new Error("API returned an empty response.");
+}
 
 const initialAgents: Agent[] = [
   {
@@ -160,10 +178,7 @@ const Index = () => {
         body: JSON.stringify({ goal }),
       });
 
-      const data = await response.json();
-      if (!response.ok) {
-        throw new Error(data?.error || `API error: ${response.status}`);
-      }
+      const data = await parseApiResponse(response);
 
       setTimeout(() => {
         setResult(data);
@@ -218,8 +233,17 @@ const Index = () => {
       });
 
       if (!response.ok) {
-        const errorData = await response.json().catch(() => null);
-        throw new Error(errorData?.error || `API error: ${response.status}`);
+        const rawBody = await response.text();
+        let errorMessage = rawBody.trim() || `API error: ${response.status}`;
+
+        try {
+          const errorData = rawBody ? JSON.parse(rawBody) : null;
+          errorMessage = errorData?.error || errorMessage;
+        } catch {
+          // Keep the fallback text when the server returns HTML or plain text.
+        }
+
+        throw new Error(errorMessage);
       }
 
       const blob = await response.blob();

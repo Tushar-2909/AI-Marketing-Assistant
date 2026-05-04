@@ -68,8 +68,8 @@ export default {
         },
       },
       fontFamily: {
-        sans: ["Inter", "system-ui", "sans-serif"],
-        display: ["'Plus Jakarta Sans'", "Inter", "system-ui", "sans-serif"],
+        sans: ["system-ui", "-apple-system", "\"Segoe UI\"", "sans-serif"],
+        display: ["\"Segoe UI\"", "system-ui", "-apple-system", "sans-serif"],
       },
       borderRadius: {
         lg: "var(--radius)",
