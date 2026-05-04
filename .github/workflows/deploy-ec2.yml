@@ -23,18 +23,13 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      # -------------------------
-      # Python Validation
-      # -------------------------
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: "3.11"
 
       - name: Install Python dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install -r requirements.txt
+        run: pip install -r requirements.txt
 
       - name: Validate Python sources
         run: |
@@ -47,38 +42,24 @@ jobs:
             agents/executor.py \
             config/llm_config.py
 
-      # -------------------------
-      # Frontend Validation
-      # Update FRONTEND_DIR if your path differs
-      # -------------------------
-      - name: Set frontend directory
-        run: echo "FRONTEND_DIR=marketing-muse-main/marketing-muse-main" >> $GITHUB_ENV
-
-      - name: Verify frontend directory exists
-        run: |
-          if [ ! -f "$FRONTEND_DIR/package.json" ]; then
-            echo "Frontend directory not found: $FRONTEND_DIR"
-            exit 1
-          fi
-
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
           node-version: "20"
           cache: npm
-          cache-dependency-path: ${{ env.FRONTEND_DIR }}/package-lock.json
+          cache-dependency-path: marketing-muse-main/marketing-muse-main/package-lock.json
 
       - name: Install frontend dependencies
+        working-directory: marketing-muse-main/marketing-muse-main
         run: npm ci
-        working-directory: ${{ env.FRONTEND_DIR }}
 
       - name: Lint frontend
+        working-directory: marketing-muse-main/marketing-muse-main
         run: npm run lint
-        working-directory: ${{ env.FRONTEND_DIR }}
 
       - name: Build frontend
+        working-directory: marketing-muse-main/marketing-muse-main
         run: npm run build
-        working-directory: ${{ env.FRONTEND_DIR }}
 
   deploy:
     if: github.event_name != 'pull_request'
@@ -89,40 +70,26 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      # -------------------------
-      # Verify deployment files
-      # -------------------------
       - name: Verify deployment files exist
         run: |
-          test -f deploy/compose.ec2.yaml || (echo "Missing deploy/compose.ec2.yaml" && exit 1)
-          test -f scripts/deploy-ec2.sh || (echo "Missing scripts/deploy-ec2.sh" && exit 1)
+          test -f deploy/compose.ec2.yaml
+          test -f scripts/deploy-ec2.sh
 
-      # -------------------------
-      # Docker Hub Login
-      # -------------------------
       - name: Log in to Docker Hub
         uses: docker/login-action@v3
         with:
           username: ${{ env.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-      # -------------------------
-      # Build + Push Docker Image
-      # -------------------------
       - name: Build and push Docker image
         uses: docker/build-push-action@v6
         with:
           context: .
           push: true
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
           tags: |
             ${{ env.DOCKERHUB_USERNAME }}/${{ env.DOCKERHUB_REPOSITORY }}:${{ github.sha }}
             ${{ env.DOCKERHUB_USERNAME }}/${{ env.DOCKERHUB_REPOSITORY }}:latest
 
-      # -------------------------
-      # Copy deployment files to EC2
-      # -------------------------
       - name: Copy deployment files to EC2
         uses: appleboy/scp-action@v0.1.7
         with:
@@ -133,9 +100,6 @@ jobs:
           target: /tmp/marketing-planning-generator
           strip_components: 1
 
-      # -------------------------
-      # Deploy on EC2
-      # -------------------------
       - name: Deploy on EC2
         uses: appleboy/ssh-action@v1.2.0
         env:
@@ -153,17 +117,8 @@ jobs:
           envs: DOCKERHUB_USERNAME,DOCKERHUB_REPOSITORY,IMAGE_TAG,DOCKERHUB_TOKEN,GROQ_API_KEY,APP_DIR,HOST_PORT
           script: |
             set -e
-
-            echo "Creating app directory..."
             mkdir -p "$APP_DIR"
-
-            echo "Copying deployment files..."
             cp /tmp/marketing-planning-generator/compose.ec2.yaml "$APP_DIR/compose.ec2.yaml"
             cp /tmp/marketing-planning-generator/deploy-ec2.sh "$APP_DIR/deploy-ec2.sh"
-
             chmod +x "$APP_DIR/deploy-ec2.sh"
-
-            echo "Running deployment script..."
             "$APP_DIR/deploy-ec2.sh"
-
-            echo "Deployment completed successfully."
